@@ -15,7 +15,7 @@ Python script showing how to use the BesSSAutomation class to search one star.
 
 # Requirements
 - Python 3.10+
-- Selenium
+- Selenium 4.0+
 
 # License
 MIT License
