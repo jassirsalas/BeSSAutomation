@@ -1,7 +1,10 @@
 import logging
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, WebDriverException
 import time
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
+
+# Importaciones locales para POM y configuración
+from config import BESS_CONSULT_URL, DOWNLOAD_WAIT_TIME
+from locators import BeSSLocators
 
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -10,7 +13,7 @@ logger = logging.getLogger(__name__)
 class BeSSAutomation:
     """
     Clase para automatizar la interacción con la base de datos BeSS (Be Star Spectra).
-    Permite buscar espectros por estrella, filtrar por fechas y descargar resultados.
+    Implementa el patrón Page Object Model (POM) separando selectores y lógica.
     """
     def __init__(self, driver):
         """
@@ -21,12 +24,12 @@ class BeSSAutomation:
         """
         self.driver = driver
 
-    def get_bess_spectra_url(self, url_bess="http://basebe.obspm.fr/basebe/BeSS/Consul.php"):
+    def get_bess_spectra_url(self, url_bess=BESS_CONSULT_URL):
         """
         Navega a la URL de consulta de BeSS.
         
         Args:
-            url_bess (str): URL de la página de consulta. Por defecto la de Spectra.
+            url_bess (str): URL de la página de consulta. Por defecto usa la constante configurada.
         """
         try:
             logger.info(f"Navegando a la URL: {url_bess}")
@@ -44,7 +47,7 @@ class BeSSAutomation:
         """
         try:
             logger.info(f"Ingresando estrella: {star_id}")
-            star_id_input = self.driver.find_element(By.XPATH, '/html/body/form/div/table/thead/tr[1]/td[2]/input')
+            star_id_input = self.driver.find_element(*BeSSLocators.STAR_ID_INPUT)
             star_id_input.clear()
             star_id_input.send_keys(star_id)
         except NoSuchElementException:
@@ -64,17 +67,15 @@ class BeSSAutomation:
         """
         try:
             logger.info(f"Configurando rango de fechas: {from_date} a {to_date}")
-            # Input star initial date
-            star_ini_date = self.driver.find_element(By.XPATH, 
-                                                     '/html/body/form/div/table/tbody[4]/tr/td[2]/input[1]')
+            
+            star_ini_date = self.driver.find_element(*BeSSLocators.DATE_FROM_INPUT)
             star_ini_date.clear()
             star_ini_date.send_keys(from_date)
 
-            # Input star final date
-            star_fin_date = self.driver.find_element(By.XPATH, 
-                                                     '/html/body/form/div/table/tbody[4]/tr/td[2]/input[2]') 
+            star_fin_date = self.driver.find_element(*BeSSLocators.DATE_TO_INPUT) 
             star_fin_date.clear()
             star_fin_date.send_keys(to_date)
+            
         except NoSuchElementException:
             logger.error("No se encontraron los campos de fecha.")
             raise
@@ -88,7 +89,7 @@ class BeSSAutomation:
         """
         try:
             logger.info("Enviando formulario de búsqueda...")
-            button_submit = self.driver.find_element(By.XPATH, '/html/body/form/div/input[4]')
+            button_submit = self.driver.find_element(*BeSSLocators.SUBMIT_BUTTON)
             button_submit.click()
         except NoSuchElementException:
             logger.error("No se encontró el botón de enviar (submit).")
@@ -103,11 +104,9 @@ class BeSSAutomation:
         """
         try:
             logger.info("Ordenando resultados por fecha (más antiguo primero)...")
-            td_date = self.driver.find_element(By.XPATH, "/html/body/form/div/table/tbody/tr[1]/td[9]/table/tbody/tr[1]/td[2]")
-            td_date.find_element(By.XPATH, "/html/body/form/div/table/tbody/tr[1]/td[9]/table/tbody/tr[1]/td[2]/input").click()
+            self.driver.find_element(*BeSSLocators.SORT_OLDEST_BTN).click()
         except NoSuchElementException:
             logger.error("No se encontró el elemento para ordenar (más antiguo).")
-            # En este caso podríamos solo avisar y no lanzar excepción si no es crítico
         except Exception as e:
             logger.error(f"Error al ordenar por fecha antigua: {e}")
     
@@ -117,8 +116,7 @@ class BeSSAutomation:
         """
         try:
             logger.info("Ordenando resultados por fecha (más reciente primero)...")
-            td_date = self.driver.find_element(By.XPATH, "/html/body/form/div/table/tbody/tr[1]/td[9]/table/tbody/tr[2]/td[2]")
-            td_date.find_element(By.XPATH, "/html/body/form/div/table/tbody/tr[1]/td[9]/table/tbody/tr[2]/td[2]/input").click()
+            self.driver.find_element(*BeSSLocators.SORT_NEWEST_BTN).click()
         except NoSuchElementException:
             logger.error("No se encontró el elemento para ordenar (más reciente).")
         except Exception as e:
@@ -130,8 +128,7 @@ class BeSSAutomation:
         """
         try:
             logger.info("Navegando a la siguiente página...")
-            td_nextpage = self.driver.find_element(By.XPATH, "/html/body/form/div/table/tbody/tr[102]/td[1]")
-            td_nextpage.find_element(By.XPATH, "/html/body/form/div/table/tbody/tr[102]/td[1]/input[2]").click()
+            self.driver.find_element(*BeSSLocators.NEXT_PAGE_BUTTON).click()
         except NoSuchElementException:
             logger.warning("No hay más páginas disponibles o no se encontró el botón de siguiente.")
         except Exception as e:
@@ -143,14 +140,14 @@ class BeSSAutomation:
         """
         try:
             logger.info("Seleccionando todos los espectros disponibles en la página...")
-            tr_download = self.driver.find_elements(By.CSS_SELECTOR, 'tr.amateur, tr.pro')
+            tr_download = self.driver.find_elements(*BeSSLocators.SPECTRA_ROWS)
             
             if not tr_download:
                 logger.warning("No se encontraron espectros para seleccionar en esta página.")
                 return
 
             for tablerow_i in tr_download:
-                tablerow_i.find_element(By.CSS_SELECTOR, 'td:last-child').find_element(By.TAG_NAME, 'input').click()
+                tablerow_i.find_element(*BeSSLocators.SELECT_CHECKBOX).click()
         except Exception as e:
             logger.error(f"Error al seleccionar estrellas: {e}")
 
@@ -160,9 +157,9 @@ class BeSSAutomation:
         """
         try:
             logger.info("Iniciando descarga de selección...")
-            download_btn = self.driver.find_element(By.CSS_SELECTOR, 'html body form div table tbody tr td input.bouton')
+            download_btn = self.driver.find_element(*BeSSLocators.DOWNLOAD_BUTTON)
             download_btn.click()
-            time.sleep(4) # Espera 4 segundos para que se complete la descarga
+            time.sleep(DOWNLOAD_WAIT_TIME) # Usando la constante configurada
         except NoSuchElementException:
             logger.error("No se encontró el botón de descarga.")
         except Exception as e:
