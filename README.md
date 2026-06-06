@@ -7,11 +7,17 @@ This tool was developed in 2023 during my master's studies to help me manage the
 `BessAuto.py`:
 The core of the project. This file contains the BeSSAutomation class, which includes all the necessary methods to launch the browser, perform searches, parse results, and download the spectra.
 
-`example_multiplestars.py`:
-A working example script showing how to search and download spectra for multiple Be star using the automation class.
+`config.py`:
+Centralized configuration file for URLs, default browser settings, and timeouts.
 
-`example_onestars.py`:
-Python script showing how to use the BesSSAutomation class to search one star.
+`locators.py`:
+Centralized locators and selectors using the Page Object Model (POM) to ensure clean separation of HTML selectors from logic.
+
+`example_multiplestars.py`:
+A working example script showing how to search and download spectra for multiple Be stars using the automation class.
+
+`example_onestar.py`:
+Python script showing how to use the BeSSAutomation class to search one star.
 
 # Requirements
 - Python 3.10+
