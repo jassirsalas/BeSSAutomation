@@ -1,9 +1,16 @@
 import logging
 import time
+import os
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.firefox import GeckoDriverManager
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 
 # Importaciones locales para POM y configuración
-from config import BESS_CONSULT_URL, DOWNLOAD_WAIT_TIME
+from config import BESS_CONSULT_URL, DOWNLOAD_WAIT_TIME, DEFAULT_BROWSER
 from locators import BeSSLocators
 
 # Configuración básica de logging
@@ -23,6 +30,53 @@ class BeSSAutomation:
             driver: Instancia de WebDriver de Selenium.
         """
         self.driver = driver
+
+    @staticmethod
+    def create_driver(download_path, browser=DEFAULT_BROWSER):
+        """
+        Crea e inicializa una instancia de WebDriver (Chrome o Firefox) con configuraciones optimizadas.
+        
+        Args:
+            download_path (str): Ruta absoluta donde se guardarán las descargas.
+            browser (str): El navegador a utilizar ('chrome' o 'firefox').
+            
+        Returns:
+            WebDriver: Instancia configurada del navegador.
+        """
+        abs_download_path = os.path.abspath(download_path)
+        
+        # Asegurar que el directorio de descarga existe
+        if not os.path.exists(abs_download_path):
+            os.makedirs(abs_download_path)
+            logger.info(f"Directorio creado: {abs_download_path}")
+
+        if browser.lower() == "chrome":
+            logger.info("Iniciando Chrome...")
+            options = webdriver.ChromeOptions()
+            driver = webdriver.Chrome(
+                service=ChromeService(ChromeDriverManager().install()),
+                options=options
+            )
+            # Configurar comportamiento de descarga para Chrome
+            params = {'behavior': 'allow', 'downloadPath': abs_download_path}
+            driver.execute_cdp_cmd('Page.setDownloadBehavior', params)
+            
+        elif browser.lower() == "firefox":
+            logger.info("Iniciando Firefox...")
+            options = FirefoxOptions()
+            # Configuración de descargas para Firefox
+            options.set_preference("browser.download.folderList", 2)
+            options.set_preference("browser.download.dir", abs_download_path)
+            options.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/fits, text/plain")
+            
+            driver = webdriver.Firefox(
+                service=FirefoxService(GeckoDriverManager().install()),
+                options=options
+            )
+        else:
+            raise ValueError(f"Navegador no soportado: {browser}. Usa 'chrome' o 'firefox'.")
+            
+        return driver
 
     def get_bess_spectra_url(self, url_bess=BESS_CONSULT_URL):
         """
@@ -140,14 +194,15 @@ class BeSSAutomation:
         """
         try:
             logger.info("Seleccionando todos los espectros disponibles en la página...")
-            tr_download = self.driver.find_elements(*BeSSLocators.SPECTRA_ROWS)
+            checkboxes = self.driver.find_elements(*BeSSLocators.SELECT_CHECKBOX)
             
-            if not tr_download:
+            if not checkboxes:
                 logger.warning("No se encontraron espectros para seleccionar en esta página.")
                 return
 
-            for tablerow_i in tr_download:
-                tablerow_i.find_element(*BeSSLocators.SELECT_CHECKBOX).click()
+            for cb in checkboxes:
+                if not cb.is_selected():
+                    cb.click()
         except Exception as e:
             logger.error(f"Error al seleccionar estrellas: {e}")
 
@@ -164,6 +219,29 @@ class BeSSAutomation:
             logger.error("No se encontró el botón de descarga.")
         except Exception as e:
             logger.error(f"Error durante la descarga: {e}")
+
+    def process_star(self, star_id, start_date, end_date):
+        """
+        Flujo completo para procesar una sola estrella: buscar, filtrar, ordenar y descargar.
+        
+        Args:
+            star_id (str): Identificador de la estrella.
+            start_date (str): Fecha inicial (AAAA-MM-DD).
+            end_date (str): Fecha final (AAAA-MM-DD).
+        """
+        try:
+            logger.info(f"--- Procesando estrella: {star_id} ---")
+            self.get_bess_spectra_url()
+            self.input_star(star_id)
+            self.input_dates(start_date, end_date)
+            self.submit_star()
+            self.sort_dates_oldest_first()
+            self.select_all_stars()
+            self.download_selection()
+            logger.info(f"--- Finalizado proceso para: {star_id} ---")
+        except Exception as e:
+            logger.error(f"Error procesando la estrella {star_id}: {e}")
+            # No re-lanzamos para permitir que bucles externos continúen si es necesario
 
     def terminate(self):
         """

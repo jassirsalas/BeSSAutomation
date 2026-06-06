@@ -1,35 +1,35 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
-
+import os
 from BessAuto import BeSSAutomation
+from config import DEFAULT_BROWSER
 
-DOWNLOAD_PATH = "/path/to/folder"
+# --- CONFIGURACIÓN ---
+DOWNLOAD_PATH = os.path.abspath("downloads")
+STAR_ID = "59 Cyg"
+FROM_DATE = "2000-01-01"
+TO_DATE = "2002-12-31"
 
-driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
+# Puedes cambiar 'DEFAULT_BROWSER' por 'chrome' o 'firefox' aquí directamente
+BROWSER = DEFAULT_BROWSER 
 
-# Skip the download alert (optional. You can remove it, 
-# but it's annoying for automatizers)
-# and set the download path 
-params = {'behavior' : 'allow', 'downloadPath': DOWNLOAD_PATH}
-driver.execute_cdp_cmd('Page.setDownloadBehavior', params)
+def main():
+    # 1. Crear el driver centralizado con la ruta de descarga y navegador elegido
+    try:
+        driver = BeSSAutomation.create_driver(DOWNLOAD_PATH, browser=BROWSER)
+    except Exception as e:
+        print(f"Error al inicializar el navegador {BROWSER}: {e}")
+        return
+    
+    try:
+        # 2. Inicializar la automatización
+        be_auto = BeSSAutomation(driver=driver)
+        
+        # 3. Procesar la estrella
+        be_auto.process_star(STAR_ID, FROM_DATE, TO_DATE)
+        
+    finally:
+        # 4. Cerrar siempre el navegador al finalizar
+        if 'be_auto' in locals():
+            be_auto.terminate()
 
-# Initialize the object and get the URL
-be_auto = BeSSAutomation(driver=driver)
-be_auto.get_bess_spectra_url()
-
-# input star id
-be_auto.input_star(star_id="59 Cyg")
-
-# Input dates and submit
-be_auto.input_dates("2000-01-01", "2002-12-31")
-be_auto.submit_star()
-
-# Sort dates and select all
-be_auto.sort_dates_oldest_first()
-be_auto.select_all_stars()
-
-# Download the selected files
-be_auto.download_selection()
-
-be_auto.terminate()
+if __name__ == "__main__":
+    main()

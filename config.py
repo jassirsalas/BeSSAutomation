@@ -3,6 +3,9 @@
 # URLs
 BESS_CONSULT_URL = "http://basebe.obspm.fr/basebe/BeSS/Consul.php"
 
+# Navegador por defecto ('chrome' o 'firefox')
+DEFAULT_BROWSER = "firefox"
+
 # Tiempos de espera (timeouts)
 DOWNLOAD_WAIT_TIME = 4  # segundos
 DEFAULT_EXPLICIT_WAIT = 10  # segundos
